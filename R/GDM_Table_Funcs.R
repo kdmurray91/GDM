@@ -1341,8 +1341,7 @@ isplineExtract <- function (model){
 ##########################################################################
 plotUncertainty <- function(spTable, sampleSites, bsIters, geo=FALSE, splines=NULL, 
                            knots=NULL, splineCol="blue", errCol="grey80", 
-                           plot.linewidth=2.0, plot.layout=c(2,2), parallel=FALSE,
-                           cores=2){
+                           plot.linewidth=2.0, plot.layout=c(2,2)){
   ##A function to plot the uncertantiy of each variable from a GDM model
   #################
   #spTable <- sitePairTab          ##the input site-pair table to subsample from
@@ -1355,8 +1354,6 @@ plotUncertainty <- function(spTable, sampleSites, bsIters, geo=FALSE, splines=NU
   #errCol <- "grey80"        ##color of the uncertainty polygon
   #plot.linewidth <- 2.0    ##line width of the center line
   #plot.layout <- c(3,3)    ##number of plots per page
-  #parallel <- F            ##rather or not the sampling should happen in parallel processing, to speed it up
-  #cores <- 6               ##number of cores to if parallel processing
   #################
   ##function breaks and warnings
   ##makes sure that table is a properly formated site-pair table
@@ -1389,19 +1386,6 @@ plotUncertainty <- function(spTable, sampleSites, bsIters, geo=FALSE, splines=NU
     stop("argument knots needs to be a numeric data type")
   }
   
-  ##checks that parallel has either TRUE or FALSE
-  if(!(parallel==TRUE | parallel==FALSE)){
-    stop("parallel argument must be either TRUE or FALSE")
-  }
-  ##makes sure that cores has a value when parallel is true
-  if(parallel==TRUE & is.null(cores)==TRUE){
-    stop("If parallel==TRUE, the number of cores must be specified")
-  }
-  ##makes sure that cores is a positive integer 
-  if((is.null(cores)==FALSE & is.numeric(cores)==FALSE) | cores<1){
-    stop("argument cores needs to be a positive integer")
-  }
-  
   ##makes sure that bsIters is a positive integer 
   if((is.null(bsIters)==FALSE & is.numeric(bsIters)==FALSE) | bsIters<1){
     stop("argument bsIters needs to be a positive integer")
@@ -1421,7 +1405,6 @@ plotUncertainty <- function(spTable, sampleSites, bsIters, geo=FALSE, splines=NU
     stop("a sampleSites value of 0 will remove all sites from the analysis")
   }
   ##double makes sure these values are integers, seems to truncate if not
-  cores <- as.integer(cores)
   bsIters <- as.integer(bsIters)
   
   ##assign k to prevent issues to cran checking
@@ -1429,33 +1412,12 @@ plotUncertainty <- function(spTable, sampleSites, bsIters, geo=FALSE, splines=NU
   
   ##makes copies of the site-pair table in order to randomly subsample each one differently
   lstSP <- lapply(1:bsIters, function(i){spTable})
-  
-  ##runs parallel if desired by the users
-  if(parallel==TRUE){
-    ##loads libraries
-    #require(foreach)
-    #require(doParallel)
-    #requireNamespace("foreach")
-    #requireNamespace("parallel")
-    #requireNamespace("doParallel")
-    
-    ##sets cores
-    cl <- makeCluster(cores, outfile="")
-    registerDoParallel(cl)
-    ##first removes a number of sites according to input
-    subSamps <- foreach(k=1:length(lstSP), .verbose=F, .packages=c("gdm")) %dopar%
-                      removeSitesFromSitePair(spTable[[k]], sampleSites=sampleSites)
-    ##models the subsamples
-    gdmMods <- foreach(k=1:length(subSamps), .verbose=F, .packages=c("gdm")) %dopar%
-                     #gdmMods <- try(foreach(k=1, .verbose=F, .packages=c("gdm")) %dopar%
-                     gdm(subSamps[[k]], geo=geo, splines=splines, knots=knots)
-    stopCluster(cl)
-  }else{
-    ##first removes a number of sites according to input
-    subSamps <- lapply(lstSP, removeSitesFromSitePair, sampleSites=sampleSites)
-    ##models the subsamples
-    gdmMods <- lapply(subSamps, gdm, geo=geo, splines=splines, knots=knots)
-  }
+  subSamps <- foreach(k=1:length(lstSP), .verbose=F, .packages=c("gdm")) %dopar%
+                    removeSitesFromSitePair(spTable[[k]], sampleSites=sampleSites)
+  ##models the subsamples
+  gdmMods <- foreach(k=1:length(subSamps), .verbose=F, .packages=c("gdm")) %dopar%
+                   #gdmMods <- try(foreach(k=1, .verbose=F, .packages=c("gdm")) %dopar%
+                   gdm(subSamps[[k]], geo=geo, splines=splines, knots=knots)
   
   ##models the full gdm
   fullGDMmodel <- gdm(spTable, geo=geo, splines=splines, knots=knots)
@@ -1659,7 +1621,7 @@ removeSitesFromSitePair <- function(spTable, sampleSites){
 #samp <- sample(1:nrow(gdmTab), 2500)
 ##########################################################################
 gdm.varImp <- function(spTable, geo, splines=NULL, knots=NULL, fullModelOnly=FALSE, 
-                                       nPerm=50, parallel=FALSE, cores=2, sampleSites=1, 
+                                       nPerm=50, sampleSites=1, 
                                         sampleSitePairs=1, outFile=NULL){
   ##function to test the signifiance of the various variables of a gdm site-pair table
   #################
@@ -1672,8 +1634,6 @@ gdm.varImp <- function(spTable, geo, splines=NULL, knots=NULL, fullModelOnly=FAL
   #knots <- NULL         ##knots gdm setting, see gdm
   #fullModelOnly <- T     ##rather to run the full calculations, or just once on the full model, acceptable values are TRUE and FALSE
   #nPerm <- 10             ##number of permutations
-  #parallel <- T          ##rather or not to run in parallel
-  #cores <- 7             ##if in parallel, the number of cores to run on
   #sampleSites <- 1   ##the percent of sites to be retained before calculating
   #sampleSitePairs <- 1  ##the percent of site-pairs (rows) to be retained before calculating
   #outFile <- NULL
@@ -1721,18 +1681,6 @@ gdm.varImp <- function(spTable, geo, splines=NULL, knots=NULL, fullModelOnly=FAL
   if((is.null(nPerm)==FALSE & is.numeric(nPerm)==FALSE) | nPerm<1){
     stop("argument nPerm needs to be a positive integer")
   }
-  ##checks that parallel has either TRUE or FALSE
-  if(!(parallel==TRUE | parallel==FALSE)){
-    stop("parallel argument must be either TRUE or FALSE")
-  }
-  ##makes sure that cores has a value when parallel is true
-  if(parallel==TRUE & is.null(cores)==TRUE){
-    stop("If parallel==TRUE, the number of cores must be specified")
-  }
-  ##makes sure that cores is a positive integer 
-  if((is.null(cores)==FALSE & is.numeric(cores)==FALSE) | cores<1){
-    stop("argument cores needs to be a positive integer")
-  }
   ##makes sure that both sampleSites and sampleSitePairs are a number between 0 and 1,
   ##and that neither is equal to 0
   if(is.numeric(sampleSites)==FALSE | sampleSites<0 | sampleSites>1){
@@ -1770,7 +1718,6 @@ gdm.varImp <- function(spTable, geo, splines=NULL, knots=NULL, fullModelOnly=FAL
 
   ##double makes sure these values are integers, seems to truncate if not
   nPerm <- as.integer(nPerm)
-  cores <- as.integer(cores)
   
   ##removes a user specified number of sites from the site-pair table
   if(sampleSites<1){
@@ -1895,28 +1842,13 @@ gdm.varImp <- function(spTable, geo, splines=NULL, knots=NULL, fullModelOnly=FAL
       break
     }
     
-    ##create a series of permutated site-pair tables, randomized site comparisons
-    if(parallel==TRUE){
-      #require(foreach)
-      #require(doParallel)
-      
-      ##sets cores
-      cl <- makeCluster(cores, outfile="")
-      registerDoParallel(cl)
-      
-      permSitePairs <- foreach(k=1:nPerm, .verbose=F, .packages=c("gdm"), .export=c("permutateSitePair")) %dopar%
-        permutateSitePair(currSitePair, siteData, indexTab, varNames)
-      ##runs gdm on the permuted tables
-      permGDM <- try(foreach(k=1:length(permSitePairs), .verbose=F, .packages=c("gdm")) %dopar%
-                       gdm(permSitePairs[[k]], geo=geo, splines=NULL, knots=NULL))
-      ##closes cores
-      stopCluster(cl)
-    }else{
-      ##non-parallel version
-      permSitePairs <- lapply(1:nPerm, function(i, csp, sd, it, vn){permutateSitePair(csp,sd,it,vn)}, 
-                              csp=currSitePair, sd=siteData, it=indexTab, vn=varNames)
-      ##runs gdm on the permuted tables
-      permGDM <- lapply(permSitePairs, gdm, geo=geo, splines=NULL, knots=NULL)
+    ##create a series of permutated site-pair tables, randomized site comparisons, then
+    ##runs gdm on the permuted tables
+    permGDM <- foreach(k=1:nPerm, .verbose=F, .packages=c("gdm"), .errorhandling="pass",
+                       .export=c("permutateSitePair", "currSitePair", "siteData", "indexTab", "varNames", "geo")
+                       ) %dopar% {
+        permSP <- permutateSitePair(currSitePair, siteData, indexTab, varNames)
+        gdm(permSP, geo=geo, splines=NULL, knots=NULL)
     }
     
     ##extracts deviance of permuted gdms
@@ -1947,24 +1879,11 @@ gdm.varImp <- function(spTable, geo, splines=NULL, knots=NULL, fullModelOnly=FAL
       noGeoGDM <- gdm(currSitePair, geo=FALSE, splines=NULL, knots=NULL)
       
       ##create a series of permutated site-pair tables, randomized site comparisons
-      if(parallel == TRUE){
-        ##sets cores
-        cl <- makeCluster(cores, outfile="")
-        registerDoParallel(cl)
-        
-        permSitePairs <- foreach(k=1:nPerm, .verbose=F, .packages=c("gdm"), .export=c("permutateSitePair")) %dopar%
-          permutateSitePair(currSitePair, siteData, indexTab, varNames)
-        
-        permGDM <- try(foreach(k=1:length(permSitePairs), .verbose=F, .packages=c("gdm")) %dopar%
-                         gdm(permSitePairs[[k]], geo=geo, splines=NULL, knots=NULL))
-        ##closes cores
-        stopCluster(cl)
-      }else{
-        ##non-parallel version
-        permSitePairs <- lapply(1:nPerm, function(i, csp, sd, it, vn){permutateSitePair(csp,sd,it,vn)}, 
-                                csp=currSitePair, sd=siteData, it=indexTab, vn=varNames)
-        ##runs gdm on the permuted tables
-        permGDM <- lapply(permSitePairs, gdm, geo=geo, splines=NULL, knots=NULL)
+      permGDM <- foreach(k=1:nPerm, .verbose=F, .packages=c("gdm"), .errorhandling="pass",
+                         .export=c("permutateSitePair", "currSitePair", "siteData", "indexTab", "varNames", "geo")
+                         ) %dopar% {
+          permSP <- permutateSitePair(currSitePair, siteData, indexTab, varNames)
+          gdm(permSP, geo=geo, splines=NULL, knots=NULL)
       }
       
       ##runs gdm on the permuted tables
@@ -2002,24 +1921,11 @@ gdm.varImp <- function(spTable, geo, splines=NULL, knots=NULL, fullModelOnly=FAL
         noVarGDM <- gdm(testSitePair, geo=geo, splines=NULL, knots=NULL)
         
         ##create a series of permutated site-pair tables, randomized site comparisons
-        if(parallel == TRUE){
-          ##sets cores
-          cl <- makeCluster(cores, outfile="")
-          registerDoParallel(cl)
-          
-          noVarSitePairs <- foreach(k=1:nPerm, .verbose=F, .packages=c("gdm"), .export=c("permutateVarSitePair")) %dopar%
-            permutateVarSitePair(currSitePair, siteData, indexTab, varChar)
-          ##runs gdm on the permuted tables
-          permGDM <- try(foreach(k=1:length(noVarSitePairs), .verbose=F, .packages=c("gdm")) %dopar%
-                           gdm(noVarSitePairs[[k]], geo=geo, splines=NULL, knots=NULL))
-          ##closes cores
-          stopCluster(cl)
-        }else{
-          ##non-parallel version
-          noVarSitePairs <- lapply(1:nPerm, function(i, csp, sd, it, vn){permutateVarSitePair(csp,sd,it,vn)}, 
-                                   csp=currSitePair, sd=siteData, it=indexTab, vn=varChar)
-          ##runs gdm on the permuted tables
-          permGDM <- lapply(noVarSitePairs, gdm, geo=geo, splines=NULL, knots=NULL)
+        permGDM <- foreach(k=1:nPerm, .verbose=F, .packages=c("gdm"), .errorhandling="pass",
+                           .export=c("permutateSitePair", "currSitePair", "siteData", "indexTab", "varNames", "geo")
+                           ) %dopar% {
+            permSP <- permutateSitePair(currSitePair, siteData, indexTab, varNames)
+            gdm(permSP, geo=geo, splines=NULL, knots=NULL)
         }
         
         ##extracts deviance of permuted gdms
