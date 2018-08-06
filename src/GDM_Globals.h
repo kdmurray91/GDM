@@ -42,11 +42,4 @@
 #endif
 
 
-#define BUFFSIZE 256
-#define MBUFFSIZE 1000000
-#define ROW_BUFF_SIZE 100000
-#define MAX_MEM_BLOCK 0x8FFFFFFF 
-#define PMODE 0666	// RW for all 
-
-
 #endif // __GDM_GLOBALS_H__
